@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>تصنيف الصور</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#124344;color:#0000ff;font-family:Tahoma,Arial,sans-serif;line-height:1.8}main{max-width:760px;margin:400px auto;padding:28px;background:white;border-radius:100px;box-shadow:0 12px 45px #18304a15}h1{margin:0}section{margin-top:24px;padding:20px;border:1px solid #dbe4ee;border-radius:14px}button{background:#1267d6;color:white;border:0;border-radius:9px;padding:12px 20px;font:inherit;cursor:pointer}button:disabled{opacity:.5;cursor:wait}input{max-width:100%;margin:8px 0}label{display:block}small{color:#52677c}#preview{display:none;max-width:100%;max-height:320px;margin:18px auto;border-radius:12px}#status{background:#edf5ff;padding:12px;border-radius:10px;white-space:pre-wrap}progress{width:100%;height:16px;accent-color:#1267d6}.result{margin-top:14px}code{direction:ltr;display:inline-block}footer{margin-top:20px;font-size:13px;color:#52677c}
+</style>
+</head>
+<body>
+<main><h1>تصنيف الصور بالذكاء الاصطناعي</h1><p>حمّل نموذج الصور من Teachable Machine، ثم اختر صورة لمعرفة نتائج التصنيف.</p>
+<section><h2>١. تحميل النموذج</h2><button id="folder">تحميل من مجلد my_model</button><p><small>عند فتح الصفحة مباشرة بالنقر عليها، اختر ملفات النموذج الثلاثة أدناه ثم اضغط تحميل الملفات.</small></p>
+<label>ملف model.json <input id="modelFile" type="file" accept=".json"></label>
+<label>ملف weights.bin <input id="weightsFile" type="file" accept=".bin"></label>
+<label>ملف metadata.json <input id="metadataFile" type="file" accept=".json"></label>
+<button id="files">تحميل الملفات المختارة</button></section>
+<section><h2>٢. اختيار الصورة</h2><input id="imageFile" type="file" accept="image/*" disabled><img id="preview" alt="الصورة المختارة"><div id="results" aria-live="polite"></div></section>
+<p id="status" role="status">جارٍ تحميل مكتبات التشغيل…</p><footer>هذه الصفحة مخصصة لنماذج الصور فقط. للتشغيل دون إنترنت ضع المكتبات داخل مجلد libs بجانب الصفحة.</footer></main>
+<script>
+// ===== المتغيرات التي يمكنك تعديلها هنا =====
+const MODEL_PATH = './my_model/'; // مجلد النموذج بجانب index.html، أو رابط نموذج منشور
+const TF_LOCAL = './libs/tf.min.js';
+const TM_LOCAL = './libs/teachablemachine-image.min.js';
+// المكتبات عبر الإنترنت تُستخدم فقط إذا لم توجد النسخ المحلية.
+const TF_ONLINE = 'https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js';
+const TM_ONLINE = 'https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8.3/dist/teachablemachine-image.min.js';
+// لا تكتب أسماء التصنيفات هنا؛ تُقرأ تلقائيًا من metadata.json.
+let model = null;
+const el = id => document.getElementById(id);
+function status(message){el('status').textContent=message;}
+function script(src){return new Promise((resolve,reject)=>{const s=document.createElement('script');s.src=src;s.onload=resolve;s.onerror=()=>{s.remove();reject(new Error('تعذر تحميل المكتبة'));};document.head.appendChild(s);});}
+async function library(local,online){try{await script(local);}catch{await script(online);}}
+function busy(value){el('folder').disabled=value;el('files').disabled=value;el('imageFile').disabled=value||!model;}
+async function loadModel(loader){busy(true);status('جارٍ تحميل النموذج…');try{const next=await loader();if(model&&typeof model.dispose==='function')model.dispose();model=next;el('results').replaceChildren();status('النموذج جاهز. اختر صورة لبدء التصنيف.');}catch(error){status('تعذر تحميل النموذج. تأكد من اختيار ملفات نموذج الصور الصحيح. لتحميل المجلد استخدم خادمًا محليًا، أو اختر الملفات يدويًا.\n'+error.message);}finally{busy(false);}}
+el('folder').onclick=()=>loadModel(()=>tmImage.load(MODEL_PATH+'model.json',MODEL_PATH+'metadata.json'));
+el('files').onclick=()=>{const m=el('modelFile').files[0],w=el('weightsFile').files[0],d=el('metadataFile').files[0];if(!m||!w||!d){status('اختر ملفات model.json و weights.bin و metadata.json أولًا.');return;}loadModel(()=>tmImage.loadFromFiles(m,w,d));};
+el('imageFile').onchange=async()=>{const file=el('imageFile').files[0];if(!file||!model)return;busy(true);el('results').replaceChildren();status('جارٍ تحليل الصورة…');const url=URL.createObjectURL(file);try{const img=el('preview');await new Promise((resolve,reject)=>{img.onload=resolve;img.onerror=()=>reject(new Error('تعذر قراءة الصورة'));img.src=url;});img.style.display='block';const predictions=await model.predict(img);predictions.sort((a,b)=>b.probability-a.probability);for(const p of predictions){const row=document.createElement('div');row.className='result';const label=document.createElement('div');label.textContent=p.className+' — '+(p.probability*100).toFixed(1)+'%';const bar=document.createElement('progress');bar.max=1;bar.value=p.probability;row.append(label,bar);el('results').append(row);}status('اكتمل التصنيف. النسب هي تقديرات النموذج وليست ضمانًا لصحة النتيجة.');}catch(error){status('تعذر تحليل الصورة: '+error.message);}finally{URL.revokeObjectURL(url);busy(false);}};
+(async()=>{busy(true);try{await library(TF_LOCAL,TF_ONLINE);await library(TM_LOCAL,TM_ONLINE);status('اختر طريقة تحميل النموذج أعلاه.');busy(false);}catch{status('تعذر تحميل مكتبات التشغيل. اتصل بالإنترنت أو ضع tf.min.js و teachablemachine-image.min.js داخل مجلد libs.');}})();
+</script>
+</body>
+</html>
