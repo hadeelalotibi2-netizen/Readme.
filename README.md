@@ -1,7 +1,7 @@
 # Teachable_Machines
-# مشروع تصنيف الصور باستخدام الذكاء الاصطناعي
 
 # AI Image Classification Using Teachable Machine
+ مشروع تصنيف الصور باستخدام الذكاء الاصطناعي
 
 ## وصف المشروع | Project Description
 
